@@ -524,9 +524,10 @@ function useGeo(){
    APP ROOT
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function App(){
-  const [user,   setUser]   =useState(null);
-  const [screen, setScreen] =useState("boot");
-  const [quizCfg,setQuizCfg]=useState(null);
+  const [user,          setUser]         =useState(null);
+  const [screen,        setScreen]       =useState("boot");
+  const [quizCfg,       setQuizCfg]      =useState(null);
+  const [pendingResult, setPendingResult]=useState(null);
   const geo=useGeo();
 
   useEffect(()=>{
@@ -548,11 +549,17 @@ export default function App(){
         setScreen("home");
       }else{
         setUser(null);
-        setScreen("login");
+        if(screen!=="home")setScreen("login");
       }
     });
     return unsub;
-  },[]);
+  },[]);// Save any pending guest result once a user signs in
+  useEffect(()=>{
+    if(user&&pendingResult){
+      saveResult(user.uid,user.displayName,pendingResult).catch(e=>console.warn(e));
+      setPendingResult(null);
+    }
+  },[user,pendingResult]);
 
   const handleChangeName=async name=>{
     if(!user)return;
@@ -562,8 +569,10 @@ export default function App(){
   const handleSignOut=()=>signOut(auth);
   const startQuiz=cfg=>{setQuizCfg(cfg);setScreen(cfg.mode);};
   const goHome=()=>setScreen("home");
+  const goGuest=useCallback(()=>setScreen("home"),[]);
   const onFinish=useCallback(async result=>{
     if(user)try{await saveResult(user.uid,user.displayName,result);}catch(e){console.warn(e);}
+    else setPendingResult(result);
   },[user]);
 
   if(screen==="boot")return(
@@ -578,12 +587,12 @@ export default function App(){
     <div style={{minHeight:"100vh",background:C.bg}}>
       {user&&<Navbar screen={screen} setScreen={setScreen} user={user} onChangeName={handleChangeName} onSignOut={handleSignOut}/>}
       <div style={{paddingTop:user?52:0}}>
-        {screen==="login"      &&<LoginScreen/>}
-        {screen==="home"       &&<HomeScreen user={user} onStart={startQuiz} geo={geo}/>}
-        {screen==="listing"    &&quizCfg&&<ListingQuiz  config={quizCfg} geo={geo} goHome={goHome} onFinish={onFinish}/>}
-        {screen==="tapmap"     &&quizCfg&&<TapMapQuiz   config={quizCfg} geo={geo} goHome={goHome} onFinish={onFinish}/>}
-        {screen==="flags"      &&quizCfg&&<PairingGame  config={quizCfg} goHome={goHome} onFinish={onFinish} gameType="flags"/>}
-        {screen==="capitals"   &&quizCfg&&<PairingGame  config={quizCfg} goHome={goHome} onFinish={onFinish} gameType="capitals"/>}
+        {screen==="login"      &&<LoginScreen onGuest={goGuest}/>}
+        {screen==="home"       &&<HomeScreen user={user} onStart={startQuiz} geo={geo} onSignIn={()=>setScreen("login")}/>}
+        {screen==="listing"    &&quizCfg&&<ListingQuiz  config={quizCfg} geo={geo} goHome={goHome} onFinish={onFinish} user={user}/>}
+        {screen==="tapmap"     &&quizCfg&&<TapMapQuiz   config={quizCfg} geo={geo} goHome={goHome} onFinish={onFinish} user={user}/>}
+        {screen==="flags"      &&quizCfg&&<PairingGame  config={quizCfg} goHome={goHome} onFinish={onFinish} gameType="flags" user={user}/>}
+        {screen==="capitals"   &&quizCfg&&<PairingGame  config={quizCfg} goHome={goHome} onFinish={onFinish} gameType="capitals" user={user}/>}
         {screen==="profile"    &&<ProfileScreen user={user}/>}
         {screen==="leaderboard"&&<LeaderboardScreen user={user}/>}
       </div>
@@ -603,7 +612,7 @@ const EMAIL_ERRORS={
   "auth/too-many-requests":"Too many attempts. Please wait a moment and try again.",
 };
 
-function LoginScreen(){
+function LoginScreen({onGuest}){
   const [mode,setMode]=useState("signin"); // "signin"|"signup"
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
@@ -738,6 +747,11 @@ function LoginScreen(){
             {mode==="signin"?"Create one":"Sign in"}
           </button>
         </p>
+        <button onClick={onGuest}
+          style={{marginTop:18,background:"none",border:"none",color:C.dim,fontSize:12,
+            cursor:"pointer",textDecoration:"underline",padding:0}}>
+          Continue without signing in
+        </button>
       </div>
     </div>
   );
@@ -838,7 +852,7 @@ const MODES = [
   {id:"capitals",emoji:"🏛️", title:"Capital Quiz",     desc:"Match countries to their capitals"},
 ];
 
-function HomeScreen({user,onStart,geo}){
+function HomeScreen({user,onStart,geo,onSignIn}){
   const [mode,   setMode]  =useState(null);
   const [region, setRegion]=useState(null);
   const [timerOn,setTimer] =useState(true);
@@ -868,9 +882,17 @@ function HomeScreen({user,onStart,geo}){
 
   return(
     <div style={{maxWidth:620,margin:"0 auto",padding:"24px 16px"}} className="fadein">
-      <div style={{marginBottom:26}}>
-        <p style={{color:C.dim,fontSize:13,marginBottom:2}}>Welcome back,</p>
-        <h1 style={{fontFamily:"'Libre Baskerville',serif",fontSize:28,fontWeight:700,color:C.tx}}>{user.displayName}</h1>
+      <div style={{marginBottom:26,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <p style={{color:C.dim,fontSize:13,marginBottom:2}}>{user?"Welcome back,":"Playing as"}</p>
+          <h1 style={{fontFamily:"'Libre Baskerville',serif",fontSize:28,fontWeight:700,color:C.tx}}>{user?user.displayName:"Guest"}</h1>
+        </div>
+        {!user&&(
+          <button onClick={onSignIn}
+            style={{padding:"9px 18px",borderRadius:10,background:C.az,color:"#fff",fontWeight:600,fontSize:13,border:"none",cursor:"pointer",boxShadow:`0 2px 10px rgba(26,95,219,.25)`}}>
+            Sign In
+          </button>
+        )}
       </div>
 
       <Step n={1} title="Pick a mode">
@@ -1075,7 +1097,7 @@ function SubsetSelector({region,mode,geo,onBack,onStart}){
 /* ═══════════════════════════════════════════════════════════════════════════
    PAIRING GAME  (flags + capitals share this component)
 ═══════════════════════════════════════════════════════════════════════════ */
-function PairingGame({config,goHome,onFinish,gameType}){
+function PairingGame({config,goHome,onFinish,gameType,user}){
   // gameType: "flags" | "capitals"
   const pool     = useMemo(()=>byRegion(config.region),[config.region]);
   const subsetIds= useMemo(()=>new Set(config.subset||pool.map(c=>c.id)),[config.subset,pool]);
@@ -1199,7 +1221,7 @@ function PairingGame({config,goHome,onFinish,gameType}){
         <div style={{height:"100%",background:C.az,width:`${pct(idx,items.length)}%`,borderRadius:4,transition:"width .3s",boxShadow:`0 0 6px rgba(26,95,219,.4)`}}/>
       </div>
 
-      {phase==="done"&&<ResultBanner score={score} total={items.length} extra={`Best streak: ${maxSt} 🔥`} onPlay={goHome}/>}
+      {phase==="done"&&<ResultBanner score={score} total={items.length} extra={`Best streak: ${maxSt} 🔥`} onPlay={goHome} user={user}/>}
 
       {phase==="playing"&&current&&(
         <>
@@ -1287,7 +1309,7 @@ function PairingGame({config,goHome,onFinish,gameType}){
 /* ═══════════════════════════════════════════════════════════════════════════
    LISTING QUIZ
 ═══════════════════════════════════════════════════════════════════════════ */
-function ListingQuiz({config,geo,goHome,onFinish}){
+function ListingQuiz({config,geo,goHome,onFinish,user}){
   const countries=useMemo(()=>byRegion(config.region),[config.region]);
   const inputRef=useRef(null);
   const [found,   setFound]  =useState(()=>new Set());
@@ -1371,7 +1393,7 @@ function ListingQuiz({config,geo,goHome,onFinish}){
           placeholder="Type a country name…" autoComplete="off" spellCheck={false}
           style={{width:"100%",padding:"12px 16px",borderRadius:12,background:C.s1,border:`1.5px solid ${C.b2}`,color:C.tx,fontSize:15,marginBottom:12,boxShadow:"0 2px 8px rgba(30,80,180,.07)"}}/>
       )}
-      {phase==="done"&&<ResultBanner score={found.size} total={countries.length} onPlay={goHome}/>}
+      {phase==="done"&&<ResultBanner score={found.size} total={countries.length} onPlay={goHome} user={user}/>}
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(138px,1fr))",gap:4,maxHeight:272,overflowY:"auto",paddingRight:2}}>
         {countries.map(c=>{
@@ -1401,7 +1423,7 @@ function ListingQuiz({config,geo,goHome,onFinish}){
 /* ═══════════════════════════════════════════════════════════════════════════
    TAP MAP QUIZ  (bug fixed: shows clicked country name on wrong tap)
 ═══════════════════════════════════════════════════════════════════════════ */
-function TapMapQuiz({config,geo,goHome,onFinish}){
+function TapMapQuiz({config,geo,goHome,onFinish,user}){
   // Countries are available if they have a TopoJSON path OR a microstate pin
   const geoNumerics=useMemo(()=>{
     if(!geo)return null;
@@ -1499,7 +1521,7 @@ function TapMapQuiz({config,geo,goHome,onFinish}){
         </div>
       )}
 
-      {phase==="done"&&<ResultBanner score={score} total={countries.length} extra={`Best streak: ${maxSt} 🔥`} onPlay={goHome}/>}
+      {phase==="done"&&<ResultBanner score={score} total={countries.length} extra={`Best streak: ${maxSt} 🔥`} onPlay={goHome} user={user}/>}
 
       {phase==="playing"&&(
         <WorldMap geo={geo} regionId={config.region} highlightNumerics={correct}
@@ -1510,8 +1532,83 @@ function TapMapQuiz({config,geo,goHome,onFinish}){
   );
 }
 
+/* ─── Inline Sign-In (shown in ResultBanner for guests) ──────────────────── */
+function InlineSignIn(){
+  const [showEmail,setShowEmail]=useState(false);
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [loading,setLoading]=useState(null);
+  const [error,setError]=useState("");
+
+  const signInGoogle=async()=>{
+    setLoading("google");setError("");
+    try{await signInWithPopup(auth,googleProvider);}
+    catch(e){
+      if(e.code!=="auth/popup-closed-by-user")
+        setError(EMAIL_ERRORS[e.code]||"Sign-in failed. Please try again.");
+      setLoading(null);
+    }
+  };
+
+  const submitEmail=async e=>{
+    e.preventDefault();
+    if(!email.trim()||!password)return;
+    setLoading("email");setError("");
+    try{
+      try{await signInWithEmailAndPassword(auth,email.trim(),password);}
+      catch(e2){
+        if(e2.code==="auth/user-not-found"||e2.code==="auth/invalid-credential")
+          await createUserWithEmailAndPassword(auth,email.trim(),password);
+        else throw e2;
+      }
+    }catch(e){
+      setError(EMAIL_ERRORS[e.code]||"Sign-in failed. Please try again.");
+      setLoading(null);
+    }
+  };
+
+  const inp={width:"100%",padding:"10px 12px",borderRadius:8,fontSize:13,
+    background:C.bg,border:`1.5px solid ${C.b1}`,color:C.tx,outline:"none",boxSizing:"border-box"};
+
+  return(
+    <div style={{marginTop:16,borderTop:`1px solid ${C.b1}`,paddingTop:14,textAlign:"left"}}>
+      <p style={{color:C.mu,fontSize:12,marginBottom:10,textAlign:"center"}}>Sign in to save this score</p>
+      <button onClick={signInGoogle} disabled={!!loading}
+        style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px 14px",
+          width:"100%",borderRadius:10,fontWeight:600,fontSize:13,border:`1.5px solid ${C.b2}`,
+          background:C.s2,color:C.tx,cursor:loading?"not-allowed":"pointer",marginBottom:8,
+          opacity:loading&&loading!=="google"?.5:1}}>
+        {loading==="google"?<Spinner/>:<GoogleIcon/>}
+        Continue with Google
+      </button>
+      {!showEmail?(
+        <button onClick={()=>setShowEmail(true)}
+          style={{background:"none",border:"none",color:C.az,fontSize:12,cursor:"pointer",
+            textDecoration:"underline",padding:0,display:"block",margin:"0 auto"}}>
+          Use email instead
+        </button>
+      ):(
+        <form onSubmit={submitEmail} style={{display:"flex",flexDirection:"column",gap:6}}>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+            placeholder="Email" style={inp} disabled={!!loading}/>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+            placeholder="Password" style={inp} disabled={!!loading}/>
+          <button type="submit" disabled={!!loading||!email.trim()||!password}
+            style={{padding:"10px",borderRadius:10,fontWeight:700,fontSize:13,border:"none",
+              background:email.trim()&&password?C.az:"rgba(26,95,219,.2)",
+              color:email.trim()&&password?"#fff":"rgba(26,95,219,.45)",
+              cursor:email.trim()&&password&&!loading?"pointer":"not-allowed"}}>
+            {loading==="email"?<Spinner/>:"Sign In / Sign Up"}
+          </button>
+        </form>
+      )}
+      {error&&<p style={{color:C.re,fontSize:11,marginTop:6,textAlign:"center"}}>{error}</p>}
+    </div>
+  );
+}
+
 /* ─── Result Banner ───────────────────────────────────────────────────────── */
-function ResultBanner({score,total,extra,onPlay}){
+function ResultBanner({score,total,extra,onPlay,user}){
   const p=pct(score,total);
   const msg=p===100?"🎉 Perfect score!":p>=80?"🌟 Excellent!":p>=50?"👍 Good effort!":"📚 Keep exploring!";
   return(
@@ -1525,6 +1622,7 @@ function ResultBanner({score,total,extra,onPlay}){
         style={{padding:"10px 30px",borderRadius:12,background:C.az,color:"#fff",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",boxShadow:`0 3px 14px rgba(26,95,219,.28)`}}>
         Play again
       </button>
+      {!user&&<InlineSignIn/>}
     </div>
   );
 }
