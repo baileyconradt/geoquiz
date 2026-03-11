@@ -347,7 +347,7 @@ function WorldMap({geo,regionId,highlightNumerics,flashNumeric,flashCorrect,corr
         :proj.fitExtent([[10,10],[VW-10,VH-10]],geo);
     }else proj.fitExtent([[5,5],[VW-5,VH-5]],geo);
     const pathFn=d3.geoPath().projection(proj);
-    const paths=geo.features.map((f,i)=>{const d=pathFn(f);return d?{id:f.id!=null?String(f.id):`feat_${i}`,d}:null;}).filter(Boolean);
+    const paths=geo.features.map((f,i)=>{const d=pathFn(f);return d?{id:f.id!=null?String(f.id):`feat_${i}`,d,feature:f}:null;}).filter(Boolean);
     // Geographic centroid + bounding-box for proximity detection (works in degree-space, not SVG-pixels)
     const geoData={};
     geo.features.forEach(f=>{
@@ -391,6 +391,11 @@ function WorldMap({geo,regionId,highlightNumerics,flashNumeric,flashCorrect,corr
   const zoomBy=f=>{if(svgRef.current&&zoomRef.current)d3.select(svgRef.current).transition().duration(220).call(zoomRef.current.scaleBy,f);};
   const resetZoom=()=>{if(svgRef.current&&zoomRef.current)d3.select(svgRef.current).transition().duration(280).call(zoomRef.current.transform,d3.zoomIdentity);};
 
+  // tappableFeatures: paths in the active region, used for geoContains hit testing
+  const tappableFeatures=useMemo(()=>
+    paths.filter(p=>!regionNums||regionNums.has(p.id))
+  ,[paths,regionNums]);
+
   // Proximity-aware click: correct if the clicked country's centroid lands within
   // PROX_DEG degrees of the correct country's geographic bounding box (~50 miles buffer).
   const handleClick=useCallback(tappedId=>{
@@ -404,6 +409,22 @@ function WorldMap({geo,regionId,highlightNumerics,flashNumeric,flashCorrect,corr
     }
     onTap(tappedId);
   },[onTap,correctNumeric,geoData]);
+
+  // SVG-level click handler using d3.geoContains for exact point-in-polygon detection.
+  // Eliminates z-order hit-target overlap that caused Belgium→Germany-style misregistrations.
+  const handleSvgClick=useCallback(e=>{
+    if(!onTap||!projFn)return;
+    const rect=svgRef.current.getBoundingClientRect();
+    const svgX=(e.clientX-rect.left)/rect.width*960;
+    const svgY=(e.clientY-rect.top)/rect.height*500;
+    const geoX=(svgX-xfm.x)/xfm.k;
+    const geoY=(svgY-xfm.y)/xfm.k;
+    const pt=projFn.invert([geoX,geoY]);
+    if(!pt)return;
+    const hits=tappableFeatures.filter(p=>{try{return d3.geoContains(p.feature,pt);}catch{return false;}});
+    if(!hits.length)return;
+    handleClick(hits[0].id);
+  },[onTap,projFn,xfm,tappableFeatures,handleClick]);
 
   const getColor=useCallback(id=>{
     if(flashNumeric===id)return flashCorrect?C.gr:C.re;
@@ -422,6 +443,7 @@ function WorldMap({geo,regionId,highlightNumerics,flashNumeric,flashCorrect,corr
     <div style={{position:"relative",borderRadius:12,overflow:"hidden",border:`1px solid ${C.b1}`,background:C.ocean,boxShadow:"0 2px 12px rgba(30,80,180,.07)"}}>
       <svg ref={svgRef} viewBox="0 0 960 500"
         style={{display:"block",width:"100%",cursor:zoomable?"grab":"default"}}
+        onClick={onTap?handleSvgClick:undefined}
         onMouseDown={e=>{if(zoomable)e.currentTarget.style.cursor="grabbing"}}
         onMouseUp  ={e=>{if(zoomable)e.currentTarget.style.cursor="grab"}}
         onMouseLeave={e=>{if(zoomable)e.currentTarget.style.cursor="grab"}}>
@@ -432,12 +454,7 @@ function WorldMap({geo,regionId,highlightNumerics,flashNumeric,flashCorrect,corr
             return(
               <g key={p.id}>
                 <path d={p.d} fill={getColor(p.id)} stroke="#fff" strokeWidth={0.5/Math.max(1,xfm.k)}
-                  style={{transition:"fill .12s ease"}}/>
-                {tappable&&(
-                  <path d={p.d} fill="rgba(0,0,0,0)" stroke="rgba(0,0,0,0)"
-                    strokeWidth={Math.max(6,8/xfm.k)} pointerEvents="all"
-                    style={{cursor:"pointer"}} onClick={()=>handleClick(p.id)}/>
-                )}
+                  style={{transition:"fill .12s ease",cursor:tappable?"pointer":"default"}}/>
               </g>
             );
           })}
@@ -732,7 +749,7 @@ function FlagImg({alpha2, width=40, style={}}){
       src={`https://flagcdn.com/${alpha2}.svg`}
       width={width}
       alt=""
-      style={{display:"inline-block",verticalAlign:"middle",borderRadius:2,flexShrink:0,...style}}
+      style={{display:"inline-block",verticalAlign:"middle",borderRadius:2,flexShrink:0,outline:"3px solid rgba(0,0,0,0.25)",...style}}
     />
   );
 }
