@@ -9,110 +9,9 @@ import {
   query, where, orderBy, limit, getDocs, deleteDoc,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "./firebase.js";
-
-/* ─── Country data ────────────────────────────────────────────────────────── */
-const RAW = [
-  ["Algeria","DZA","dz","012","Algiers","Africa"],["Angola","AGO","ao","024","Luanda","Africa"],
-  ["Benin","BEN","bj","204","Porto-Novo","Africa"],["Botswana","BWA","bw","072","Gaborone","Africa"],
-  ["Burkina Faso","BFA","bf","854","Ouagadougou","Africa"],["Burundi","BDI","bi","108","Gitega","Africa"],
-  ["Cabo Verde","CPV","cv","132","Praia","Africa"],["Cameroon","CMR","cm","120","Yaoundé","Africa"],
-  ["Central African Republic","CAF","cf","140","Bangui","Africa"],["Chad","TCD","td","148","N'Djamena","Africa"],
-  ["Comoros","COM","km","174","Moroni","Africa"],["Congo","COG","cg","178","Brazzaville","Africa"],
-  ["DR Congo","COD","cd","180","Kinshasa","Africa"],["Djibouti","DJI","dj","262","Djibouti","Africa"],
-  ["Egypt","EGY","eg","818","Cairo","Africa"],["Equatorial Guinea","GNQ","gq","226","Malabo","Africa"],
-  ["Eritrea","ERI","er","232","Asmara","Africa"],["Eswatini","SWZ","sz","748","Mbabane","Africa"],
-  ["Ethiopia","ETH","et","231","Addis Ababa","Africa"],["Gabon","GAB","ga","266","Libreville","Africa"],
-  ["Gambia","GMB","gm","270","Banjul","Africa"],["Ghana","GHA","gh","288","Accra","Africa"],
-  ["Guinea","GIN","gn","324","Conakry","Africa"],["Guinea-Bissau","GNB","gw","624","Bissau","Africa"],
-  ["Ivory Coast","CIV","ci","384","Yamoussoukro","Africa"],["Kenya","KEN","ke","404","Nairobi","Africa"],
-  ["Lesotho","LSO","ls","426","Maseru","Africa"],["Liberia","LBR","lr","430","Monrovia","Africa"],
-  ["Libya","LBY","ly","434","Tripoli","Africa"],["Madagascar","MDG","mg","450","Antananarivo","Africa"],
-  ["Malawi","MWI","mw","454","Lilongwe","Africa"],["Mali","MLI","ml","466","Bamako","Africa"],
-  ["Mauritania","MRT","mr","478","Nouakchott","Africa"],["Mauritius","MUS","mu","480","Port Louis","Africa"],
-  ["Morocco","MAR","ma","504","Rabat","Africa"],["Mozambique","MOZ","mz","508","Maputo","Africa"],
-  ["Namibia","NAM","na","516","Windhoek","Africa"],["Niger","NER","ne","562","Niamey","Africa"],
-  ["Nigeria","NGA","ng","566","Abuja","Africa"],["Rwanda","RWA","rw","646","Kigali","Africa"],
-  ["Sao Tome and Principe","STP","st","678","São Tomé","Africa"],["Senegal","SEN","sn","686","Dakar","Africa"],
-  ["Seychelles","SYC","sc","690","Victoria","Africa"],["Sierra Leone","SLE","sl","694","Freetown","Africa"],
-  ["Somalia","SOM","so","706","Mogadishu","Africa"],["South Africa","ZAF","za","710","Pretoria","Africa"],
-  ["South Sudan","SSD","ss","728","Juba","Africa"],["Sudan","SDN","sd","729","Khartoum","Africa"],
-  ["Tanzania","TZA","tz","834","Dodoma","Africa"],["Togo","TGO","tg","768","Lomé","Africa"],
-  ["Tunisia","TUN","tn","788","Tunis","Africa"],["Uganda","UGA","ug","800","Kampala","Africa"],
-  ["Zambia","ZMB","zm","894","Lusaka","Africa"],["Zimbabwe","ZWE","zw","716","Harare","Africa"],
-  ["Albania","ALB","al","008","Tirana","Europe"],["Andorra","AND","ad","020","Andorra la Vella","Europe"],
-  ["Austria","AUT","at","040","Vienna","Europe"],["Belarus","BLR","by","112","Minsk","Europe"],
-  ["Belgium","BEL","be","056","Brussels","Europe"],["Bosnia and Herzegovina","BIH","ba","070","Sarajevo","Europe"],
-  ["Bulgaria","BGR","bg","100","Sofia","Europe"],["Croatia","HRV","hr","191","Zagreb","Europe"],
-  ["Cyprus","CYP","cy","196","Nicosia","Europe"],["Czechia","CZE","cz","203","Prague","Europe"],
-  ["Denmark","DNK","dk","208","Copenhagen","Europe"],["Estonia","EST","ee","233","Tallinn","Europe"],
-  ["Finland","FIN","fi","246","Helsinki","Europe"],["France","FRA","fr","250","Paris","Europe"],
-  ["Germany","DEU","de","276","Berlin","Europe"],["Greece","GRC","gr","300","Athens","Europe"],
-  ["Hungary","HUN","hu","348","Budapest","Europe"],["Iceland","ISL","is","352","Reykjavik","Europe"],
-  ["Ireland","IRL","ie","372","Dublin","Europe"],["Italy","ITA","it","380","Rome","Europe"],
-  ["Kosovo","XKX","xk","383","Pristina","Europe"],["Latvia","LVA","lv","428","Riga","Europe"],
-  ["Liechtenstein","LIE","li","438","Vaduz","Europe"],["Lithuania","LTU","lt","440","Vilnius","Europe"],
-  ["Luxembourg","LUX","lu","442","Luxembourg City","Europe"],["Malta","MLT","mt","470","Valletta","Europe"],
-  ["Moldova","MDA","md","498","Chișinău","Europe"],["Monaco","MCO","mc","492","Monaco","Europe"],
-  ["Montenegro","MNE","me","499","Podgorica","Europe"],["Netherlands","NLD","nl","528","Amsterdam","Europe"],
-  ["North Macedonia","MKD","mk","807","Skopje","Europe"],["Norway","NOR","no","578","Oslo","Europe"],
-  ["Poland","POL","pl","616","Warsaw","Europe"],["Portugal","PRT","pt","620","Lisbon","Europe"],
-  ["Romania","ROU","ro","642","Bucharest","Europe"],["Russia","RUS","ru","643","Moscow","Europe"],
-  ["San Marino","SMR","sm","674","San Marino","Europe"],["Serbia","SRB","rs","688","Belgrade","Europe"],
-  ["Slovakia","SVK","sk","703","Bratislava","Europe"],["Slovenia","SVN","si","705","Ljubljana","Europe"],
-  ["Spain","ESP","es","724","Madrid","Europe"],["Sweden","SWE","se","752","Stockholm","Europe"],
-  ["Switzerland","CHE","ch","756","Bern","Europe"],["Ukraine","UKR","ua","804","Kyiv","Europe"],
-  ["United Kingdom","GBR","gb","826","London","Europe"],["Vatican City","VAT","va","336","Vatican City","Europe"],
-  ["Afghanistan","AFG","af","004","Kabul","Asia"],["Armenia","ARM","am","051","Yerevan","Asia"],
-  ["Azerbaijan","AZE","az","031","Baku","Asia"],["Bahrain","BHR","bh","048","Manama","Asia"],
-  ["Bangladesh","BGD","bd","050","Dhaka","Asia"],["Bhutan","BTN","bt","064","Thimphu","Asia"],
-  ["Brunei","BRN","bn","096","Bandar Seri Begawan","Asia"],["Cambodia","KHM","kh","116","Phnom Penh","Asia"],
-  ["China","CHN","cn","156","Beijing","Asia"],["Georgia","GEO","ge","268","Tbilisi","Asia"],
-  ["India","IND","in","356","New Delhi","Asia"],["Indonesia","IDN","id","360","Jakarta","Asia"],
-  ["Iran","IRN","ir","364","Tehran","Asia"],["Iraq","IRQ","iq","368","Baghdad","Asia"],
-  ["Israel","ISR","il","376","Jerusalem","Asia"],["Japan","JPN","jp","392","Tokyo","Asia"],
-  ["Jordan","JOR","jo","400","Amman","Asia"],["Kazakhstan","KAZ","kz","398","Astana","Asia"],
-  ["Kuwait","KWT","kw","414","Kuwait City","Asia"],["Kyrgyzstan","KGZ","kg","417","Bishkek","Asia"],
-  ["Laos","LAO","la","418","Vientiane","Asia"],["Lebanon","LBN","lb","422","Beirut","Asia"],
-  ["Malaysia","MYS","my","458","Kuala Lumpur","Asia"],["Maldives","MDV","mv","462","Malé","Asia"],
-  ["Mongolia","MNG","mn","496","Ulaanbaatar","Asia"],["Myanmar","MMR","mm","104","Naypyidaw","Asia"],
-  ["Nepal","NPL","np","524","Kathmandu","Asia"],["North Korea","PRK","kp","408","Pyongyang","Asia"],
-  ["Oman","OMN","om","512","Muscat","Asia"],["Pakistan","PAK","pk","586","Islamabad","Asia"],
-  ["Palestine","PSE","ps","275","Ramallah","Asia"],["Philippines","PHL","ph","608","Manila","Asia"],
-  ["Qatar","QAT","qa","634","Doha","Asia"],["Saudi Arabia","SAU","sa","682","Riyadh","Asia"],
-  ["Singapore","SGP","sg","702","Singapore","Asia"],["South Korea","KOR","kr","410","Seoul","Asia"],
-  ["Sri Lanka","LKA","lk","144","Colombo","Asia"],["Syria","SYR","sy","760","Damascus","Asia"],
-  ["Taiwan","TWN","tw","158","Taipei","Asia"],["Tajikistan","TJK","tj","762","Dushanbe","Asia"],
-  ["Thailand","THA","th","764","Bangkok","Asia"],["Timor-Leste","TLS","tl","626","Dili","Asia"],
-  ["Turkey","TUR","tr","792","Ankara","Asia"],["Turkmenistan","TKM","tm","795","Ashgabat","Asia"],
-  ["United Arab Emirates","ARE","ae","784","Abu Dhabi","Asia"],["Uzbekistan","UZB","uz","860","Tashkent","Asia"],
-  ["Vietnam","VNM","vn","704","Hanoi","Asia"],["Yemen","YEM","ye","887","Sana'a","Asia"],
-  ["Antigua and Barbuda","ATG","ag","028","Saint John's","Americas"],["Argentina","ARG","ar","032","Buenos Aires","Americas"],
-  ["Bahamas","BHS","bs","044","Nassau","Americas"],["Barbados","BRB","bb","052","Bridgetown","Americas"],
-  ["Belize","BLZ","bz","084","Belmopan","Americas"],["Bolivia","BOL","bo","068","Sucre","Americas"],
-  ["Brazil","BRA","br","076","Brasília","Americas"],["Canada","CAN","ca","124","Ottawa","Americas"],
-  ["Chile","CHL","cl","152","Santiago","Americas"],["Colombia","COL","co","170","Bogotá","Americas"],
-  ["Costa Rica","CRI","cr","188","San José","Americas"],["Cuba","CUB","cu","192","Havana","Americas"],
-  ["Dominica","DMA","dm","212","Roseau","Americas"],["Dominican Republic","DOM","do","214","Santo Domingo","Americas"],
-  ["Ecuador","ECU","ec","218","Quito","Americas"],["El Salvador","SLV","sv","222","San Salvador","Americas"],
-  ["Grenada","GRD","gd","308","Saint George's","Americas"],["Guatemala","GTM","gt","320","Guatemala City","Americas"],
-  ["Guyana","GUY","gy","328","Georgetown","Americas"],["Haiti","HTI","ht","332","Port-au-Prince","Americas"],
-  ["Honduras","HND","hn","340","Tegucigalpa","Americas"],["Jamaica","JAM","jm","388","Kingston","Americas"],
-  ["Mexico","MEX","mx","484","Mexico City","Americas"],["Nicaragua","NIC","ni","558","Managua","Americas"],
-  ["Panama","PAN","pa","591","Panama City","Americas"],["Paraguay","PRY","py","600","Asunción","Americas"],
-  ["Peru","PER","pe","604","Lima","Americas"],["Saint Kitts and Nevis","KNA","kn","659","Basseterre","Americas"],
-  ["Saint Lucia","LCA","lc","662","Castries","Americas"],
-  ["Saint Vincent and the Grenadines","VCT","vc","670","Kingstown","Americas"],
-  ["Suriname","SUR","sr","740","Paramaribo","Americas"],["Trinidad and Tobago","TTO","tt","780","Port of Spain","Americas"],
-  ["United States","USA","us","840","Washington D.C.","Americas"],["Uruguay","URY","uy","858","Montevideo","Americas"],
-  ["Venezuela","VEN","ve","862","Caracas","Americas"],
-  ["Australia","AUS","au","036","Canberra","Oceania"],["Fiji","FJI","fj","242","Suva","Oceania"],
-  ["Kiribati","KIR","ki","296","South Tarawa","Oceania"],["Marshall Islands","MHL","mh","584","Majuro","Oceania"],
-  ["Micronesia","FSM","fm","583","Palikir","Oceania"],["Nauru","NRU","nr","520","Yaren","Oceania"],
-  ["New Zealand","NZL","nz","554","Wellington","Oceania"],["Palau","PLW","pw","585","Ngerulmud","Oceania"],
-  ["Papua New Guinea","PNG","pg","598","Port Moresby","Oceania"],["Samoa","WSM","ws","882","Apia","Oceania"],
-  ["Solomon Islands","SLB","sb","090","Honiara","Oceania"],["Tonga","TON","to","776","Nukualofa","Oceania"],
-  ["Tuvalu","TUV","tv","798","Funafuti","Oceania"],["Vanuatu","VUT","vu","548","Port Vila","Oceania"],
-];
+import { RAW } from "./data/CountryData.js";
+import { REGIONS } from "./data/Regions.js";
+import { MICROSTATE_PINS } from "./data/MicrostatePins.js";
 
 const COUNTRIES = RAW.map(([name,id,alpha2,numeric,capital,region])=>({
   id,alpha2,numeric,name,capital,region,
@@ -131,23 +30,7 @@ const ALIASES = new Map([
   ["palestine","PSE"],["cabo verde","CPV"],["eswatini","SWZ"],
 ]);
 
-/* ─── Microstate pin coordinates ─────────────────────────────────────────── */
-// These tiny countries always render as a clickable dot on the map.
-// Even if a country appears in the TopoJSON, its polygon is too small to click
-// reliably, so we overlay a dot for all entries in this list.
-const MICROSTATE_PINS=[
-  {numeric:"020", lat:42.55, lon: 1.60},  // Andorra
-  {numeric:"383", lat:42.60, lon:21.00},  // Kosovo
-  {numeric:"438", lat:47.14, lon: 9.55},  // Liechtenstein
-  {numeric:"470", lat:35.90, lon:14.51},  // Malta
-  {numeric:"492", lat:43.73, lon: 7.40},  // Monaco
-  {numeric:"674", lat:43.94, lon:12.47},  // San Marino
-  {numeric:"336", lat:41.90, lon:12.45},  // Vatican City
-  {numeric:"462", lat: 3.20, lon:73.22},  // Maldives
-  {numeric:"520", lat:-0.53, lon:166.93}, // Nauru
-  {numeric:"585", lat: 7.51, lon:134.58}, // Palau
-  {numeric:"798", lat:-8.52, lon:179.20}, // Tuvalu
-];
+
 
 /* ─── Fuzzy answer matching ──────────────────────────────────────────────── */
 // Normalize: lowercase, strip accents, strip punctuation, collapse spaces
@@ -182,14 +65,7 @@ function checkAnswer(input,target,isCountry=false){
   return{ok:false,close:false};
 }
 
-const REGIONS = [
-  {id:"africa",  label:"Africa",  emoji:"🌍",hint:"54 countries"},
-  {id:"europe",  label:"Europe",  emoji:"🌍",hint:"46 countries"},
-  {id:"asia",    label:"Asia",    emoji:"🌏",hint:"48 countries"},
-  {id:"americas",label:"Americas",emoji:"🌎",hint:"35 countries"},
-  {id:"oceania", label:"Oceania", emoji:"🌏",hint:"14 countries"},
-  {id:"world",   label:"World",   emoji:"🌐",hint:"197 countries"},
-];
+
 
 const byRegion = id => id==="world" ? COUNTRIES
   : COUNTRIES.filter(c=>c.region==={africa:"Africa",europe:"Europe",asia:"Asia",americas:"Americas",oceania:"Oceania"}[id]);
@@ -207,6 +83,7 @@ const C = {
 };
 
 /* ─── Styles ──────────────────────────────────────────────────────────────── */
+//...and they said my inline css was too much -ryan
 (() => {
   if (document.getElementById("gd-css")) return;
   const el = document.createElement("style"); el.id="gd-css";
